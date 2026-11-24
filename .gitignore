@@ -1,0 +1,25 @@
+# Dependency/vendor (tidak perlu di-push, sudah disertakan di server/lib)
+vendor/
+node_modules/
+
+# Konfigurasi IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Log & cache
+*.log
+/tmp/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment lokal (jangan push kredensial)
+.env
+.env.local
+
+# Output test sementara
+*.out

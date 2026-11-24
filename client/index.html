@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<!--
+  index.html  --  CLIENT WEB GraphQL (Pertemuan 9)
+  Isinya dua bagian:
+    1. "Mini GraphiQL": menulis query / mutation sendiri lalu menjalankannya.
+    2. "Pilih field": client MENENTUKAN kolom apa yang diminta -> inilah inti GraphQL.
+  Cara pakai: buka file ini di browser (klik dua kali). Atur alamat server di kotak paling atas.
+  Akun latihan: admin/admin123 (admin) atau budi/budi123 (user).
+-->
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Client GraphQL Mahasiswa</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 880px; margin: 20px auto; padding: 0 12px; color: #222; }
+  h1, h2 { color: #0b2545; }  h2 { margin-top: 28px; }
+  input, textarea { padding: 7px; box-sizing: border-box; }
+  textarea { width: 100%; font-family: Consolas, monospace; font-size: 13px; }
+  button { padding: 7px 14px; background: #0b2545; color: #fff; border: 0; border-radius: 4px; cursor: pointer; margin: 2px 2px 2px 0; }
+  button.contoh { background: #1b7f9e; }
+  pre { background: #0b2545; color: #d6e4f0; padding: 12px; border-radius: 6px; overflow: auto; min-height: 60px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+  th { background: #0b2545; color: #fff; }
+  .info { background: #eaf4fb; border-left: 4px solid #1b7f9e; padding: 8px 12px; margin: 8px 0; }
+  .token { font-family: monospace; font-size: 11px; word-break: break-all; color: #555; }
+  label { margin-right: 14px; }
+</style>
+</head>
+<body>
+
+<h1>Client GraphQL</h1>
+
+<p>Alamat endpoint:
+  <input id="alamat" size="55" value="http://localhost/api-mhs-graphql/server/graphql.php">
+</p>
+<p>Status login: <b id="status">belum login</b>
+  <button onclick="masuk('admin','admin123')">Login admin</button>
+  <button onclick="masuk('budi','budi123')">Login budi</button>
+  <button onclick="keluar()">Logout</button></p>
+<div class="token" id="tokenTampil"></div>
+
+<!-- =============================================================== -->
+<h2>1. Mini GraphiQL: tulis query sendiri</h2>
+<div>
+  Contoh:
+  <button class="contoh" onclick="contoh(0)">halo</button>
+  <button class="contoh" onclick="contoh(1)">daftar</button>
+  <button class="contoh" onclick="contoh(2)">detail + variables</button>
+  <button class="contoh" onclick="contoh(3)">alias</button>
+  <button class="contoh" onclick="contoh(4)">tambah (admin)</button>
+  <button class="contoh" onclick="contoh(5)">field salah</button>
+</div>
+<p>Query / Mutation:</p>
+<textarea id="query" rows="9"></textarea>
+<p>Variables (JSON, boleh kosong):</p>
+<textarea id="variabel" rows="3"></textarea>
+<button onclick="jalankan()">Jalankan</button>
+<div class="info" id="info">Pilih contoh lalu klik Jalankan.</div>
+<pre id="hasil">(hasil muncul di sini)</pre>
+
+<!-- =============================================================== -->
+<h2>2. Client menentukan bentuk data</h2>
+<p>Centang field yang Anda butuhkan. Query dibuat otomatis, dan server hanya mengirim field tersebut.</p>
+<label><input type="checkbox" value="id" checked> id</label>
+<label><input type="checkbox" value="nim" checked> nim</label>
+<label><input type="checkbox" value="name" checked> name</label>
+<label><input type="checkbox" value="major"> major</label>
+<label><input type="checkbox" value="angkatan"> angkatan</label>
+<label><input type="checkbox" value="created_at"> created_at</label>
+<br><button onclick="muatTabel()">Muat Tabel</button>
+<div class="info" id="infoTabel">Ukuran jawaban akan ditampilkan di sini.</div>
+<pre id="queryTabel" style="min-height:20px"></pre>
+<table><thead id="kepala"></thead><tbody id="tabel"></tbody></table>
+
+<script>
+// ---------------------------------------------------------------
+// Token JWT disimpan di variabel ini setelah login (hilang jika halaman di-refresh).
+// ---------------------------------------------------------------
+let token = null;
+
+function alamat() { return document.getElementById('alamat').value; }
+
+// ---------------------------------------------------------------
+// gql() : satu-satunya fungsi yang berbicara dengan server.
+// Perhatikan: SELALU POST ke SATU alamat, isinya {query, variables}.
+// ---------------------------------------------------------------
+async function gql(query, variables) {
+  const header = { 'Content-Type': 'application/json' };
+  if (token) header['Authorization'] = 'Bearer ' + token;      // sama seperti Pertemuan 7
+
+  const respons = await fetch(alamat(), {
+    method: 'POST',
+    headers: header,
+    body: JSON.stringify({ query: query, variables: variables || undefined })
+  });
+  const teks = await respons.text();                           // teks mentah, untuk menghitung ukuran
+  return { status: respons.status, teks: teks, json: JSON.parse(teks) };
+}
+
+// ---------------------------------------------------------------
+// LOGIN: login adalah sebuah MUTATION
+// ---------------------------------------------------------------
+async function masuk(username, password) {
+  const r = await gql(
+    'mutation($u: String!, $p: String!) { login(username: $u, password: $p) { token username role } }',
+    { u: username, p: password }
+  );
+  if (r.json.errors) { alert(r.json.errors[0].message); return; }
+  token = r.json.data.login.token;
+  document.getElementById('status').textContent = r.json.data.login.username + ' (role: ' + r.json.data.login.role + ')';
+  document.getElementById('tokenTampil').textContent = 'Token: ' + token;
+}
+
+function keluar() {
+  token = null;
+  document.getElementById('status').textContent = 'belum login';
+  document.getElementById('tokenTampil').textContent = '';
+}
+
+// ---------------------------------------------------------------
+// BAGIAN 1: contoh-contoh query
+// ---------------------------------------------------------------
+const CONTOH = [
+  { q: '{\n  halo\n}', v: '' },
+  { q: '{\n  jumlahMahasiswa\n  daftarMahasiswa {\n    nim\n    name\n  }\n}', v: '' },
+  { q: 'query Detail($id: Int!) {\n  mahasiswa(id: $id) {\n    name\n    major\n    angkatan\n  }\n}', v: '{ "id": 1 }' },
+  { q: '{\n  pertama: mahasiswa(id: 1) { name }\n  kedua: mahasiswa(id: 2) { name }\n}', v: '' },
+  { q: 'mutation Tambah($in: MahasiswaInput!) {\n  tambahMahasiswa(input: $in) {\n    id\n    nim\n    name\n  }\n}',
+    v: '{ "in": { "nim": "24670001", "name": "Nama Baru", "major": "Informatika" } }' },
+  { q: '{\n  mahasiswa(id: 1) {\n    gaji\n  }\n}', v: '' }
+];
+
+function contoh(i) {
+  document.getElementById('query').value = CONTOH[i].q;
+  document.getElementById('variabel').value = CONTOH[i].v;
+  document.getElementById('info').textContent = 'Klik Jalankan.' + (i == 4 ? ' (butuh login admin; mutation ini gagal jika NIM sudah ada)' : '');
+}
+
+async function jalankan() {
+  let variabel = null;
+  const teksVar = document.getElementById('variabel').value.trim();
+  if (teksVar) {
+    try { variabel = JSON.parse(teksVar); }
+    catch (e) { document.getElementById('info').textContent = 'Variables bukan JSON yang valid.'; return; }
+  }
+  const r = await gql(document.getElementById('query').value, variabel);
+  document.getElementById('hasil').textContent = JSON.stringify(r.json, null, 2);
+  document.getElementById('info').textContent =
+    'HTTP status ' + r.status + (r.json.errors ? ' | ada errors (' + (r.json.errors[0].extensions ? r.json.errors[0].extensions.code : 'validasi') + ')' : ' | tanpa error');
+}
+
+// ---------------------------------------------------------------
+// BAGIAN 2: client memilih field -> query dibuat otomatis
+// ---------------------------------------------------------------
+async function muatTabel() {
+  const dipilih = [...document.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+  if (dipilih.length == 0) { alert('Pilih minimal 1 field'); return; }
+
+  const query = '{\n  daftarMahasiswa {\n    ' + dipilih.join('\n    ') + '\n  }\n}';
+  document.getElementById('queryTabel').textContent = query;
+
+  const r = await gql(query);
+  if (r.json.errors) { document.getElementById('infoTabel').textContent = r.json.errors[0].message; return; }
+
+  document.getElementById('kepala').innerHTML = '<tr>' + dipilih.map(f => '<th>' + f + '</th>').join('') + '</tr>';
+  document.getElementById('tabel').innerHTML = r.json.data.daftarMahasiswa
+    .map(m => '<tr>' + dipilih.map(f => '<td>' + esc(m[f]) + '</td>').join('') + '</tr>').join('');
+  document.getElementById('infoTabel').textContent =
+    'Ukuran jawaban server: ' + r.teks.length + ' byte untuk ' + dipilih.length + ' field. Coba tambah / kurangi centang dan bandingkan.';
+}
+
+// Mengubah karakter < > & agar teks dari database tidak dijalankan sebagai HTML.
+function esc(teks) {
+  return String(teks).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+contoh(1);
+</script>
+</body>
+</html>
